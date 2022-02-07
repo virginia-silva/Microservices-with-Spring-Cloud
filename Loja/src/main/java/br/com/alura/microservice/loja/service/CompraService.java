@@ -1,39 +1,41 @@
 package br.com.alura.microservice.loja.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cloud.client.discovery.DiscoveryClient;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import br.com.alura.microservice.loja.client.FornecedorClient;
 import br.com.alura.microservice.loja.dto.CompraDTO;
 import br.com.alura.microservice.loja.dto.InfoFornecedorDTO;
+import br.com.alura.microservice.loja.dto.InfoPedidoDTO;
+import br.com.alura.microservice.loja.model.Compra;
 
 @Service
 public class CompraService {
 	
-	@Autowired
-	private RestTemplate client;
+	private static final Logger LOG = LoggerFactory.getLogger(CompraService.class);
 	
 	@Autowired
-	private DiscoveryClient eurekaClient;
+	private FornecedorClient fornecedorClient;
 
-	public void realizaCompra(CompraDTO compra) {
+	public Compra realizaCompra(CompraDTO compra) {
 		
-		ResponseEntity<InfoFornecedorDTO> exchange = 
-			client.exchange("http://fornecedor/info/"+compra.getEndereco().getEstado(),
-			HttpMethod.GET, null, InfoFornecedorDTO.class);
+		final String estado = compra.getEndereco().getEstado();
 		
+		LOG.info("buscando informações do fornecedor de {}", estado);
+		InfoFornecedorDTO info = fornecedorClient.getInfoPorEstado(estado);
 		
-		eurekaClient.getInstances("fornecedor").stream()
-		.forEach(fornecedor -> {
-			System.out.println("localhost:"+fornecedor.getPort());
-		});
+		LOG.info("realizando um pedido");
+		InfoPedidoDTO infoPedido = fornecedorClient.realizaPedido(compra.getItens());
 		
+		Compra compraSalva = new Compra();
+		compraSalva.setPedidoId(infoPedido.getId());
+		compraSalva.setTempoDePreparo(infoPedido.getTempoDePreparo());
+		compraSalva.setEnderecoDestino(info.getEndereco());
 		
-		System.out.println(exchange.getBody().getEndereco());
+		System.out.println(info.getEndereco());
 		
+		return compraSalva;
 	}
-
+	
 }
